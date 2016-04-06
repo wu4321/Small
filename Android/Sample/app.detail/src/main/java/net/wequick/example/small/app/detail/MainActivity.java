@@ -26,7 +26,7 @@ public class MainActivity extends AppCompatActivity {
             String from = uri.getQueryParameter("from");
             if (from != null) {
                 TextView tvFrom = (TextView) findViewById(R.id.tvFrom);
-                tvFrom.setText("-- Greet from " + from);
+                tvFrom.setText("-- Greet from " + from + getStringFromNative());
             }
         }
     }
@@ -45,4 +45,9 @@ public class MainActivity extends AppCompatActivity {
         outState.putString("Hello", "Small");
         super.onSaveInstanceState(outState);
     }
+
+    static {
+            System.loadLibrary("JniTest");
+    }
+    public native String getStringFromNative();
 }

@@ -34,6 +34,7 @@ import android.content.pm.PackageManager;
 import android.util.DisplayMetrics;
 import android.util.Log;
 
+import net.wequick.small.util.FileUtils;
 import net.wequick.small.util.ReflectAccelerator;
 
 import java.io.File;
@@ -42,6 +43,8 @@ import java.lang.reflect.Method;
 import java.util.Iterator;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+
+import dalvik.system.BaseDexClassLoader;
 
 /**
  * This class launch the plugin activity by it's class name.
@@ -334,6 +337,7 @@ public class ApkBundleLauncher extends SoBundleLauncher {
             apk.dexElementIndex = 0; // insert to header
             apk.activities = pluginInfo.activities;
 
+
             // Add dex element to class loader's pathList
             Context context = Small.getContext();
             File packagePath = context.getFileStreamPath(FD_STORAGE);
@@ -351,6 +355,7 @@ public class ApkBundleLauncher extends SoBundleLauncher {
                 if (optDexFile.exists()) optDexFile.delete();
                 Small.setBundleUpgraded(packageName, false);
             }
+            FileUtils.fillSoFile(apkPath, libDir);
             ReflectAccelerator.expandDexPathList(
                     context.getClassLoader(), apkPath, libDir.getPath(), optDexFile.getPath());
 

@@ -17,17 +17,18 @@
 package net.wequick.small.util;
 
 import android.content.Context;
+import android.os.Build;
+import android.util.Log;
 
 import net.wequick.small.Small;
 
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
-import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
+import java.util.Enumeration;
 import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 import java.util.zip.ZipInputStream;
 
 /**
@@ -93,5 +94,55 @@ public final class FileUtils {
 
     public static File getDownloadBundlePath() {
         return getInternalFilesPath(DOWNLOAD_PATH);
+    }
+
+    public static void fillSoFile(String file, File path) {
+        StringBuffer soPath1 = new StringBuffer("lib/");
+        StringBuffer soPath2 = new StringBuffer("lib/");
+        if (Build.VERSION.SDK_INT >= 21) {
+            String[] abis =  Build.SUPPORTED_ABIS;
+            soPath1.append(abis[0]);
+            soPath2.append(abis[1]);
+        } else {
+            soPath1.append(Build.CPU_ABI);
+            soPath2.append(Build.CPU_ABI2);
+        }
+        boolean isSuccess = copySo(file, path, soPath1.toString());
+        if(!isSuccess) copySo(file, path, soPath2.toString());
+    }
+
+    public static boolean copySo(String file, File path, String soPath) {
+        Log.d("copySo-before", System.currentTimeMillis()+"");
+        boolean isSuccess = false;
+        try {
+            ZipFile zipFile = new ZipFile(file);
+            Enumeration<? extends ZipEntry> enumeration = zipFile.entries();
+            while (enumeration.hasMoreElements()) {
+                ZipEntry zipEntry =  enumeration.nextElement();
+                String zipEntryName = zipEntry.getName();
+                if(zipEntryName.startsWith(soPath) && zipEntryName.endsWith(".so")) {
+                    String soName = zipEntryName.substring(zipEntryName.lastIndexOf("/") + 1);
+                    Log.d("soname", soName);
+                    if(!path.exists()) path.mkdirs();
+                    File soFile = new File(path,soName);
+                    FileOutputStream out = new FileOutputStream(soFile);
+                    InputStream is = zipFile.getInputStream(zipEntry);
+                    int len;
+                    byte[] buffer = new byte[1024];
+                    while ((len = is.read(buffer)) != -1) {
+                        out.write(buffer, 0, len);
+                        out.flush();
+                    }
+                    out.close();
+                    is.close();
+                    isSuccess = true;
+                }
+
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        Log.d("copySo-after", System.currentTimeMillis()+"");
+        return isSuccess;
     }
 }

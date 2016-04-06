@@ -10,6 +10,11 @@ android {
         applicationId 'net.wequick.example.small.app.detail'
         versionCode 1
         versionName "1.0"
+        ndk {
+            moduleName "JniTest"
+            ldLibs "log", "z", "m"
+            abiFilters "armeabi", "armeabi-v7a", "x86"
+        }
     }
     buildTypes {
         release {

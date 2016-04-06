@@ -161,6 +161,7 @@ public class ReflectAccelerator {
                 DexFile dexFile = DexFile.loadDex(dexPath, optDexPath, 0);
                 Object element = makeDexElement(pkg, dexFile);
                 fillDexPathList(cl, element);
+                setNativeLibPath(cl, libraryPath);
             } catch (Exception e) {
                 e.printStackTrace();
                 return false;
@@ -395,6 +396,25 @@ public class ReflectAccelerator {
             e.printStackTrace();
         }
         return null;
+    }
+
+    private static void setNativeLibPath(ClassLoader cl, String libraryPath) {
+        try {
+            if (sPathListField == null) {
+                sPathListField = getDeclaredField(DexClassLoader.class.getSuperclass(), "pathList");
+            }
+            Class pathListClass = Class.forName("dalvik.system.DexPathList");
+            Object pathList = sPathListField.get(cl);
+            Method splitLibraryPath =  getDeclaredMethod(pathListClass, "splitLibraryPath", new Class[]{String.class});
+            splitLibraryPath.setAccessible(true);
+            File[] nativeLibraryDirectories =  invoke(splitLibraryPath, pathList, libraryPath);
+            Field nativeLibraryDirectoriesField = getDeclaredField(pathListClass, "nativeLibraryDirectories");
+            nativeLibraryDirectoriesField.setAccessible(true);
+            setValue(nativeLibraryDirectoriesField, pathList, nativeLibraryDirectories);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     //______________________________________________________________________________________________
