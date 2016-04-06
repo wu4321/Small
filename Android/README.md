@@ -94,7 +94,7 @@ buildscript {
     }
     dependencies {
         classpath 'com.android.tools.build:gradle:1.3.0'
-        classpath 'net.wequick.tools.build:gradle-small:0.3.5'
+        classpath 'net.wequick.tools.build:gradle-small:0.4.1'
     }
 }
 
@@ -109,7 +109,7 @@ apply plugin: 'net.wequick.small'
 
 ```groovy
 small {
-    aarVersion = '0.6.0'
+    aarVersion = '0.7.0'
 }
 ```
 
@@ -245,8 +245,9 @@ protected void onStart() {
 
   - [x] 下载插件
   - [ ] 热更新（现在需要重启生效）
-  - [ ] [终极分离与去除警告](https://github.com/wequick/Small/issues/11)
+  - [x] [终极分离与去除警告](https://github.com/wequick/Small/issues/11)
   - [ ] [加速生成AndroidManifest.xml](https://github.com/wequick/Small/issues/12)
+  - [ ] [支持混淆](https://github.com/wequick/Small/issues/85)
 
 ## 文档
 [Wiki](https://github.com/wequick/small/wiki/Android)

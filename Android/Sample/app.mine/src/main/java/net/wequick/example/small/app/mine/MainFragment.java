@@ -10,7 +10,13 @@ import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.TextView;
 
+import com.example.mylib.Greet;
 import net.wequick.example.small.lib.utils.UIUtils;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 
 /**
  * Created by galen on 15/11/12.
@@ -45,6 +51,23 @@ public class MainFragment extends Fragment {
                 startActivityForResult(intent, REQUEST_CODE_CONTACTS);
             }
         });
+
+        try {
+//            assert (getResources().getAssets().equals(getContext().getAssets()));
+
+            InputStream is = getResources().getAssets().open("greet.txt");
+            BufferedReader br = new BufferedReader(new InputStreamReader(is));
+            String greet = br.readLine();
+            is.close();
+
+            TextView tvAssets = (TextView) rootView.findViewById(R.id.assets_label);
+            tvAssets.setText("assets/greet.txt: " + greet);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        TextView tvLib = (TextView) rootView.findViewById(R.id.lib_label);
+        tvLib.setText(Greet.hello());
 
         return rootView;
     }

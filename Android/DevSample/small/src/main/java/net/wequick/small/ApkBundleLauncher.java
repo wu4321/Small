@@ -21,19 +21,20 @@ import android.app.Application;
 import android.app.Instrumentation;
 import android.content.ActivityNotFoundException;
 import android.content.ComponentName;
+import android.content.Context;
 import android.content.ContextWrapper;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.ActivityInfo;
+import android.content.pm.PackageInfo;
 import android.content.res.AssetManager;
 import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.os.IBinder;
-import android.content.Context;
-import android.content.Intent;
-import android.content.pm.PackageInfo;
-import android.content.pm.PackageManager;
 import android.util.DisplayMetrics;
 import android.util.Log;
 
+import net.wequick.small.util.BundleParser;
 import net.wequick.small.util.FileUtils;
 import net.wequick.small.util.ReflectAccelerator;
 
@@ -41,10 +42,10 @@ import java.io.File;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-
-import dalvik.system.BaseDexClassLoader;
 
 /**
  * This class launch the plugin activity by it's class name.
@@ -81,6 +82,7 @@ public class ApkBundleLauncher extends SoBundleLauncher {
 
     private static ConcurrentHashMap<String, LoadedApk> sLoadedApks;
     private static ConcurrentHashMap<String, ActivityInfo> sLoadedActivities;
+    private static ConcurrentHashMap<String, List<IntentFilter>> sLoadedIntentFilters;
 
     protected static Instrumentation sHostInstrumentation;
 
@@ -155,9 +157,18 @@ public class ApkBundleLauncher extends SoBundleLauncher {
 
         private void wrapIntent(Intent intent) {
             ComponentName component = intent.getComponent();
-            if (component == null) return; // ignore system intent
+            String realClazz;
+            if (component == null) {
+                // Implicit way to start an activity
+                component = intent.resolveActivity(Small.getContext().getPackageManager());
+                if (component != null) return; // ignore system or host action
 
-            String realClazz = intent.getComponent().getClassName();
+                realClazz = resolveActivity(intent);
+                if (realClazz == null) return;
+            } else {
+                realClazz = component.getClassName();
+            }
+
             if (sLoadedActivities == null) return;
 
             ActivityInfo ai = sLoadedActivities.get(realClazz);
@@ -185,6 +196,30 @@ public class ApkBundleLauncher extends SoBundleLauncher {
             }
             if (realClazz == null) return className;
             return realClazz;
+        }
+
+        private String resolveActivity(Intent intent) {
+            if (sLoadedIntentFilters == null) return null;
+
+            Iterator<Map.Entry<String, List<IntentFilter>>> it =
+                    sLoadedIntentFilters.entrySet().iterator();
+            while (it.hasNext()) {
+                Map.Entry<String, List<IntentFilter>> entry = it.next();
+                List<IntentFilter> filters = entry.getValue();
+                for (IntentFilter filter : filters) {
+                    if (filter.hasAction(Intent.ACTION_VIEW)) {
+                        // TODO: match uri
+                    }
+                    if (filter.hasCategory(Intent.CATEGORY_DEFAULT)) {
+                        // custom action
+                        if (filter.hasAction(intent.getAction())) {
+                            // hit
+                            return entry.getKey();
+                        }
+                    }
+                }
+            }
+            return null;
         }
 
         private String[] mStubQueue;
@@ -273,6 +308,7 @@ public class ApkBundleLauncher extends SoBundleLauncher {
         return new String[] {"app", "lib"};
     }
 
+    /** Incubating */
     private void unloadBundle(String packageName) {
         if (sLoadedApks == null) return;
         LoadedApk apk = sLoadedApks.get(packageName);
@@ -302,33 +338,14 @@ public class ApkBundleLauncher extends SoBundleLauncher {
 
     @Override
     public void loadBundle(Bundle bundle) {
-        boolean patching = bundle.isPatching();
         String packageName = bundle.getPackageName();
-        File plugin = bundle.getBuiltinFile();
-        PackageManager pm = Small.getContext().getPackageManager();
-        PackageInfo pluginInfo = pm.getPackageArchiveInfo(plugin.getPath(),
-                PackageManager.GET_ACTIVITIES);
 
-        File patch = bundle.getPatchFile();
-        if (patch.exists()) {
-            PackageInfo patchInfo = pm.getPackageArchiveInfo(patch.getPath(),
-                    PackageManager.GET_ACTIVITIES);
-            if (patchInfo.versionCode < pluginInfo.versionCode) {
-                Log.d(TAG, "Patch file should be later than built-in!");
-                patch.delete();
-            } else {
-                plugin = patch;
-                pluginInfo = patchInfo;
-            }
-        }
-
-        if (patching) {
-            // Unload bundle of the package name
-            unloadBundle(packageName);
-        }
+        BundleParser parser = bundle.getParser();
+        parser.collectActivities();
+        PackageInfo pluginInfo = parser.getPackageInfo();
 
         // Load the bundle
-        String apkPath = plugin.getPath();
+        String apkPath = parser.getSourcePath();
         if (sLoadedApks == null) sLoadedApks = new ConcurrentHashMap<String, LoadedApk>();
         LoadedApk apk = sLoadedApks.get(packageName);
         if (apk == null) {
@@ -387,6 +404,15 @@ public class ApkBundleLauncher extends SoBundleLauncher {
         for (ActivityInfo ai : pluginInfo.activities) {
             sLoadedActivities.put(ai.name, ai);
         }
+
+        // Record intent-filters for implicit action
+        ConcurrentHashMap<String, List<IntentFilter>> filters = parser.getIntentFilters();
+        if (filters != null) {
+            if (sLoadedIntentFilters == null) {
+                sLoadedIntentFilters = new ConcurrentHashMap<String, List<IntentFilter>>();
+            }
+            sLoadedIntentFilters.putAll(filters);
+        }
     }
 
     @Override
@@ -404,13 +430,13 @@ public class ApkBundleLauncher extends SoBundleLauncher {
         if (!sLoadedActivities.containsKey(activityName)) {
             if (!activityName.endsWith("Activity")) {
                 throw new ActivityNotFoundException("Unable to find explicit activity class { " +
-                        activityName + "}");
+                        activityName + " }");
             }
 
             String tempActivityName = activityName + "Activity";
             if (!sLoadedActivities.containsKey(tempActivityName)) {
                 throw new ActivityNotFoundException("Unable to find explicit activity class { " +
-                        activityName + "or" + tempActivityName + "}");
+                        activityName + " or " + tempActivityName + " }");
             }
 
             activityName = tempActivityName;
@@ -466,6 +492,7 @@ public class ApkBundleLauncher extends SoBundleLauncher {
         activity.setTheme(ai.getThemeResource());
         // Apply plugin softInputMode
         activity.getWindow().setSoftInputMode(ai.softInputMode);
+        activity.setRequestedOrientation(ai.screenOrientation);
     }
 
     /**
