@@ -33,6 +33,7 @@ import android.content.res.Resources;
 import android.os.IBinder;
 import android.util.DisplayMetrics;
 import android.util.Log;
+import android.view.Window;
 
 import net.wequick.small.util.BundleParser;
 import net.wequick.small.util.FileUtils;
@@ -491,6 +492,7 @@ public class ApkBundleLauncher extends SoBundleLauncher {
         ReflectAccelerator.setTheme(activity, null);
         activity.setTheme(ai.getThemeResource());
         // Apply plugin softInputMode
+
         activity.getWindow().setSoftInputMode(ai.softInputMode);
         activity.setRequestedOrientation(ai.screenOrientation);
     }
